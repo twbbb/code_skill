@@ -18,6 +18,7 @@
     "./skills/svc-local-env",
     "./skills/svc-local-test",
     "./skills/svc-implement",
+    "./skills/svc-implement-spec",
     "./skills/svc-code-review"
   ]
 }
