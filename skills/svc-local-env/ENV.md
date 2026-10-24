@@ -19,11 +19,13 @@ templates:                          # 每个进程渲染一份：输出文件名
 
 vars:                               # 所有进程共用的模板变量
   REFRESH: 3600
+  ENV_NAME: lt                      # trpc_go 的 global.env_name，定时任务锁 key 带它
 procs:                              # 本服务的进程，端口按 PORTS.md 分
   wx1:
     port: 18301
     service: trpc.common.wxtoken.WxToken
     note: RPC 用例
+    vars: {ENV_NAME: ltrpc}         # 它也会跑定时任务，换个环境名，任务锁才不和 wxt 抢
   wxt1:
     port: 18302
     service: trpc.common.wxtoken.WxToken

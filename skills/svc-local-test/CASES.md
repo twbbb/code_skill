@@ -55,7 +55,7 @@ cases:
 
 | 字段 | 说明 |
 |---|---|
-| `mark` | `@gen 用例NN` 或 `@manual`，见 SKILL.md「生成标记」 |
+| `mark` | `@gen 用例NN` 或 `@manual`，见 [TESTCODE.md](TESTCODE.md)「生成标记」 |
 | `method`、`title` | 证据文件名和标题 |
 | `proc` | 取日志的进程；多个进程（多实例、兄弟服务）写列表，日志行前会标 `[进程]` |
 | `data` | 默认 `true`，要有 `data/NN.sql` 或 `data/NN.redis` |

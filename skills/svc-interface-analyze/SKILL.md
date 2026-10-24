@@ -1,17 +1,13 @@
 ---
 name: svc-interface-analyze
-description: 读代码把被测服务的一个入口（RPC 方法、HTTP handler、定时任务）按执行顺序写成调用树，带每一步的解读和日志，存进测试工作区；同一入口已有调用树时在它上面增量补。生成用例前要拿到与当前代码一致的调用树，或想摸清某个入口怎么走时使用。
+description: 调用树：读代码把服务的一个入口（RPC 方法、HTTP handler、定时任务）按执行顺序写成带解读和日志的调用树，存进 testcase/analysis/。生成用例前要拿到与当前代码一致的调用树，或想摸清某个入口怎么走时使用。
 ---
 
 # 分析入口的调用树
 
-在参考版本上，用 `gocalls.sh` 拉静态调用树当骨架，逐方法读代码，补成一份调用树（页面 JSON，格式见 [HTML-FORMAT.md](HTML-FORMAT.md)）。读者是写用例的人：要从调用树里看出走哪条路由什么条件决定、读写了哪些表和缓存 key、调下游发了什么、每一步打什么日志。术语见 [CONTEXT.md](../../CONTEXT.md)。
+在参考版本上，用 `gocalls.sh` 拉静态调用树当骨架，逐方法读代码，补成一份调用树（页面 JSON，格式见 [HTML-FORMAT.md](HTML-FORMAT.md)）。读者是写用例的人：要从调用树里看出走哪条路由什么条件决定、读写了哪些表和缓存 key、调下游发了什么、每一步打什么日志。
 
-- `<本skill目录>`：本文件所在目录。
-- `<服务>`：被测服务的 go 模块目录（有 `go.mod` 的那一层，如 `common_server/wxtoken`）。
-- `<工作区>`：`<服务>/testcase/`，没有就建。
-- `<接口名>`：RPC 用方法名（`GetAccessToken`），HTTP 用 handler 函数名（`handleAPI`），定时任务用任务名（`RefreshAccessToken`）；入口类型分别是 `rpc`、`http`、`cron`。
-- 服务都不大，主 agent 自己从头读到尾，不派子 agent。
+`<服务>`、`<工作区>` 见[约定](../svc-local-test-flow/CONVENTIONS.md)，`<工作区>` 没有就建。`<接口名>`：RPC 用方法名（`GetAccessToken`），HTTP 用 handler 函数名（`handleAPI`），定时任务用任务名（`RefreshAccessToken`）；入口类型分别是 `rpc`、`http`、`cron`。服务都不大，自己从头读到尾。
 
 ## 产物
 
@@ -29,7 +25,7 @@ description: 读代码把被测服务的一个入口（RPC 方法、HTTP handler
    - `http`：`thttp.RegisterNoProtocolServiceMux`、`http.HandleFunc` 等注册的每个 handler。
    - `cron`：`InitTaskTicker*` 等注册的每个任务，入口方法是传进去的那个函数。
 
-   每个入口定下 `<接口名>`、入口类型、gocalls 用的入口全名（如 `'wxtokensvc.(*WxTokenImpl).GetAccessToken'`，只写方法名会命中 pb 里的同名 getter）、`<ts>`。
+   每个入口定下 `<接口名>`、入口类型、gocalls 用的入口全名、`<ts>`。入口全名写到包和接收者：指针接收者 `'wxtokensvc.(*WxTokenImpl).GetAccessToken'`，值接收者 `'pkg.(Type).Method'`，函数 `'pkg.Func'`；gocalls 按子串匹配，写全才能避开 pb 里的同名 getter。
    完成：每个入口都有这四项。
 
 2. **定做法**：参考版本是 `<工作区>/analysis/<接口名>/` 下 `<ts>` 最大的那份 JSON。
@@ -39,14 +35,14 @@ description: 读代码把被测服务的一个入口（RPC 方法、HTTP handler
    | 没有 | **新建**：从 `<本skill目录>/assets/interface-page.template.json` 拷成 `<ts>.json`，从第 3 步开始 |
    | 有 | 执行 `python3 <本skill目录>/scripts/calltree.py changed <参考版本> --dir <服务>`，列出参考版本的 `meta.commit` 之后（含未提交改动）调用链涉及的源文件哪些改了 |
 
-   `changed` 输出「无改动」：参考版本的 `meta.commit` 就是 HEAD 时直接**复用**它，不新建文件，跳到第 6 步；不是 HEAD 时拷成 `<ts>.json`，改 `meta`（见第 6 步）后也算**复用**。有改动就是**增量**：拷成 `<ts>.json`，第 3 步重拉骨架，第 4 步只重读改动文件涉及的节点，其余节点保留。
+   `changed` 输出「无改动」：参考版本的 `meta.commit` 就是 HEAD 时直接**复用**这份文件，跳到第 6 步；不是 HEAD 时拷成 `<ts>.json`，改 `meta`（见第 6 步）后也算**复用**。有改动就是**增量**：拷成 `<ts>.json`，第 3 步重拉骨架，第 4 步只重读改动文件涉及的节点，其余节点保留。
    完成：每个入口都定下了「新建」「复用」或「增量」。
 
 3. **生成骨架、补断点**：
    ```bash
    OUT=<工作区>/analysis/<接口名>/<ts>.calltree.json <本skill目录>/scripts/gocalls.sh <服务> '<入口全名>'
    ```
-   第一次跑会在 `<本skill目录>/scripts/bin/` 现编 gocalls，要本机 go 1.24 以上。读、改骨架用 [scripts/calltree.py](scripts/calltree.py) 的 `load`/`walk`/`dump`。
+   第一次跑会在 `<本skill目录>/scripts/bin/` 现编 gocalls，要本机 go 1.24 以上；改过 `scripts/gocalls/` 的源码后删掉 `scripts/bin/` 让它重编。读、改骨架用 [scripts/calltree.py](scripts/calltree.py) 的 `load`/`walk`/`dump`。
 
    本仓库只有一个实现的接口调用已直接下钻；本仓库没有实现的（trpc client proxy、go-redis、`cipher.AEAD` 这类标准库接口、第三方 SDK）已标 `skipped: 桩/仓库外`。`calltree.py list --open <骨架>` 列出剩下的断点，只有两类：
    - `断点: 接口 invoke，N 个实现`：`candidates` 列了每个实现的 `文件:行`。
@@ -82,14 +78,14 @@ description: 读代码把被测服务的一个入口（RPC 方法、HTTP handler
 
 ## 读代码的规则
 
-- **整棵树细铺**：骨架里本仓库的每个方法都读，下一次分析才能在它上面增量补。纯判断、取值的小方法（`expired`、`tokenKey` 这类）并进父节点的 `note` 一句带过。
-- **仓库边界**：下钻到本模块最底层（含 dao、helper、内部 package）。同一仓库里的其他模块（`pkg/`）、`replace` 进来的 toolbox、第三方包、框架、下游服务，在调用处记一行就停。纯工具函数不展开，它拼出的 SQL、key、请求体记在父节点上。
+- **整棵树细铺**：骨架里本模块的每个方法都读，下一次分析才能在它上面增量补。多个入口共用的一段只在最直接调它的入口里展开，其他入口在调用点放一个节点，标题写 `见 <接口名> 页 · <方法名>`，`note` 只写传参的差异。纯判断、取值的小方法（`expired`、`tokenKey` 这类）并进父节点的 `note` 一句带过。
+- **仓库边界**：下钻到本模块最底层（含 dao、helper、内部 package）。同一仓库里的其他模块（`pkg/`）、`replace` 进来的 toolbox、第三方包、框架、下游服务，在调用处记一行就停。纯工具函数记成父节点上的一句话，连同它拼出的 SQL、key、请求体。
 - **每个方法深度优先这样读**：
   1. 写清输入、输出、副作用、分支条件（写到具体字段和取值）。
   2. 从上到下按执行顺序列出下一跳（本模块方法、DB、RPC、HTTP、缓存、外部包），记下调用点行号。本模块的被调方法先下钻到底，再回到兄弟节点。
   3. 每个节点填 `log`：格式串原文和 `文件:行`，没有日志写 `无`。日志缺判断要用的字段（只打了状态没打日期、打出来是指针）时，在 `note` 里写缺什么。
   4. 边界节点写全拼出的 SQL、缓存 key、RPC 请求结构、HTTP 的 method 和 URL，`type` 标 `db`/`rpc`/`cache`（HTTP 下游也标 `rpc`），关键代码放 `code`。
-- **`kids` 按执行顺序排**，简单方法也一样：从上往下扫一层 `kids`，等于顺着代码读一遍。按功能归类、按重要程度排、把 DB 调用集中到一起，读者都对不上代码。
+- **`kids` 按执行顺序排**，简单方法也一样：从上往下扫一层 `kids`，等于顺着代码读一遍。
 - **复杂方法按真实执行流铺**：有 goroutine、闭包、defer、channel、条件触发时，先从上到下列出每一步的行号，再照这个顺序建 `kids`。
   - 闭包被调用时才算一步。
   - `wg.Wait()`、`close(ch)`、拿锁放锁这类同步点单独成节点，把前后的步骤分开。
