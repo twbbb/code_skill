@@ -103,8 +103,9 @@ def init(rnd, nn, method, title, force):
     rid = f"{kl.service()}-lt-{nn}-{now:%H%M%S}"
     path = os.path.join(round_dir(rnd), f"{nn}_{method}.md")
     with open(path, "w", encoding="utf-8") as f:
+        # 精确到毫秒：test 代码按它数日志，按秒会把上一条用例同一秒的行也算进来
         f.write(TEMPLATE.format(nn=nn, method=method, title=title, round=rnd, request_id=rid,
-                                time=f"{now:%Y-%m-%d %H:%M:%S}"))
+                                time=now.strftime("%Y-%m-%d %H:%M:%S.%f")[:23]))
     print(f"{path}\nrequestId={rid}")
     return path
 
@@ -156,7 +157,8 @@ def flow(path, title, source, lines, nodes):
         name, _, kw = node.partition("=")
         absent = kw.startswith("!")
         kw = kw[1:] if absent else kw
-        hits = [l for l in lines if kw in l]
+        parts_kw = kw.split(" && ")  # 用 && 连起来的几段都要出现在同一行
+        hits = [l for l in lines if all(p in l for p in parts_kw)]
         parts.append(f"### {name}｜{'预期不出现' if absent else '预期出现'}｜结论：待填\n\n关键字：`{kw}`，命中 {len(hits)} 行")
         if hits:
             more = f"\n\n另有 {len(hits) - 5} 行，见 `.log`" if len(hits) > 5 else ""
@@ -227,7 +229,7 @@ def secrets():
     def walk(v, key=""):
         if isinstance(v, dict):
             for k, x in v.items():
-                walk(x, str(k))
+                walk(x, f"{key}.{k}")  # 带上上层键名：secretKeys: {1: "..."} 的值也算
         elif isinstance(v, list):
             for x in v:
                 walk(x, key)

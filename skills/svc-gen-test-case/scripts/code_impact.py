@@ -316,7 +316,11 @@ def impact(a):
             node_refs, last = refs_in(text, last)
             for path, line, key in hits(node_refs, base):
                 chain_notes.append(f"- {c['name']} 节点 {seq}：{path}:{line} 落在改动声明 `{key[1]}`")
-            for kw, _ in KEYWORD.findall(text):
+            for kw, where in KEYWORD.findall(text):
+                wr, _ = refs_in(f"（{where}）", last)
+                # 出处不在本模块（如 toolbox 打的日志）不查
+                if not any(os.path.exists(os.path.join(mod.dir, p)) for p, _ in wr):
+                    continue
                 if git(mod.dir, "grep", "-q", "--untracked", "-F", "-e", kw, "--", "*.go", check=False) is None:
                     chain_notes.append(f"- {c['name']} 节点 {seq}：日志关键字 `{kw}` 在当前代码里搜不到")
 

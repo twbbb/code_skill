@@ -166,7 +166,7 @@ def run_one(a, cfg, nn, render):
         source = "、".join(os.path.relpath(kl.proc_log(p), kl.WS) for p in procs)
         if also:
             source += f"（含时段内匹配 `{also}` 的行）"
-        nodes = render(expand(case.get("flow"), flows)) + [f"替身命中 {s}=rpcproxy cache|hit|" + s for s in stubs]
+        nodes = render(expand(case.get("flow"), flows)) + [f"替身命中 {s}=rpcproxy cache|hit| && {s}" for s in stubs]
         if nodes:
             ev.flow(path, "日志", source, lines, nodes)
         ev.rpcproxy_lines(path, lines)
@@ -179,26 +179,29 @@ def run_one(a, cfg, nn, render):
     return ok
 
 
-def check_env(cfg):
+def check_env():
+    """default 里的进程和兄弟服务要在监听；其他进程（如定时任务实例）由用例自己起停，只列出来。"""
     bad = []
-    refs = list((kl.env().get("procs") or {}))
+    procs = kl.env().get("procs") or {}
+    must = set(kl.env().get("default") or procs)
+    refs = list(procs)
     for sib, s in (kl.env().get("siblings") or {}).items():
-        refs += [f"{sib}:{p}" for p in s.get("procs") or []]
-    wanted = set()
-    for c in cfg["cases"].values():
-        wanted |= set(c["proc"] if isinstance(c["proc"], list) else [c["proc"]])
+        sib_refs = [f"{sib}:{p}" for p in s.get("procs") or []]
+        refs += sib_refs
+        must |= set(sib_refs)
     for ref in refs:
         _, _, port = kl.proc(ref)
         up = kl.listening(port)
-        print(f"{'✅' if up else '—'} {ref} 端口 {port}" + ("" if up else "（没在监听）"))
-        if not up and ref in wanted:
+        print(f"{'✅' if up else ('❌' if ref in must else '—')} {ref} 端口 {port}"
+              + ("" if up else "（没在监听）" if ref in must else "（用例自己起停）"))
+        if not up and ref in must:
             bad.append(ref)
     code, out = kl.run_sql("SELECT 1")
     print(f"{'✅' if code == 0 else '❌'} MySQL 库 {kl.mysql_db()}" + ("" if code == 0 else f"：{out}"))
     rcode, rout = kl.run_redis("PING")
     print(f"{'✅' if rcode == 0 else '❌'} Redis db {kl.redis_conn()['db']}" + ("" if rcode == 0 else f"：{rout}"))
     if bad or code or rcode:
-        sys.exit("环境没准备好" + (f"：用例要用的 {'、'.join(bad)} 没在监听，先 localstart/startserver.sh start" if bad else ""))
+        sys.exit("环境没准备好" + (f"：{'、'.join(bad)} 没在监听，先 localstart/startserver.sh start" if bad else ""))
 
 
 def main():
@@ -217,7 +220,7 @@ def main():
             print(f"{nn}\t{c['proc']}\t{c['method']}\t{c['title']}")
         return
     if a.env:
-        check_env(cfg)
+        check_env()
         return
     if not a.nn:
         sys.exit("给出要执行的用例序号（all 表示全部），或用 --list 查看")

@@ -61,7 +61,7 @@ cases:
 | `data` | 默认 `true`，要有 `data/NN.sql` 或 `data/NN.redis` |
 | `before`、`after` | bash 命令列表，cwd 是测试工作区。`before` 在数据脚本之后，`after` 不管成败都执行 |
 | `pre`、`post` | 每项 `{note, sql}` 或 `{note, redis}`；`sql` 可以写 `sql` 里的名字 |
-| `flow` | `flows` 里的名字，或 `"节点名=日志关键字"`，关键字前加 `!` 表示预期不出现。替身命中不用写，按本条写过的替身自动加 |
+| `flow` | `flows` 里的名字，或 `"节点名=日志关键字"`，关键字前加 `!` 表示预期不出现；`"a && b"` 表示同一行里 a、b 都要有。替身命中不用写，按本条写过的替身自动加 |
 | `also` | 正则，时段内匹配它的行也算本条日志 |
 | `abandoned` | 已废弃 |
 

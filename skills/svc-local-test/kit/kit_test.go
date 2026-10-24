@@ -33,7 +33,7 @@ type Case struct {
 	t         *testing.T
 	Path      string    // result/<轮>/NN_<Method>.md
 	RequestId string    // 证据文件头部的 requestId，调用时带给被测进程
-	Start     time.Time // 证据文件头部的执行时间，数日志只数这之后的
+	Start     time.Time // 证据文件头部的执行时间（毫秒），数日志只数这之后的
 }
 
 // NewCase 从 result/$ROUND/NN_*.md 头部读 requestId 和执行时间
@@ -56,7 +56,7 @@ func NewCase(t *testing.T, nn string) *Case {
 		c.RequestId = string(m[1])
 	}
 	if m := regexp.MustCompile(`(?m)^- 执行时间：(.+)$`).FindSubmatch(b); m != nil {
-		c.Start, _ = time.ParseInLocation("2006-01-02 15:04:05", string(m[1]), time.Local)
+		c.Start, _ = time.ParseInLocation("2006-01-02 15:04:05.000", string(m[1]), time.Local)
 	}
 	if c.RequestId == "" || c.Start.IsZero() {
 		t.Fatalf("%s 头部没有 requestId 或执行时间", c.Path)
@@ -151,18 +151,18 @@ func (c *Case) AddRequestID(id string) {
 	}
 }
 
-// StubRPC 写一份 trpc 下游替身。service 是被调服务名，req 写被测服务会发出的请求，md 是它带的用户身份 metadata
-func (c *Case) StubRPC(service, method string, req, rsp any, md map[string]string) {
+// StubRPC 写一份 trpc 下游替身，返回替身文件名。service 是被调服务名，req 写被测服务会发出的请求，md 是它带的用户身份 metadata
+func (c *Case) StubRPC(service, method string, req, rsp any, md map[string]string) string {
 	c.t.Helper()
 	file, err := rpcproxy.StubFile(stubDir, service, method, req, md)
 	if err != nil {
 		c.t.Fatalf("算替身文件名失败: %v", err)
 	}
-	c.writeStub(file, service+"/"+method, req, rsp)
+	return c.writeStub(file, service+"/"+method, req, rsp)
 }
 
-// StubHTTP 写一份 HTTP 下游替身。url 带 query，body 是被测服务会发出的请求体原文
-func (c *Case) StubHTTP(method, url, body string, rsp *rpcproxy.HTTPRsp) {
+// StubHTTP 写一份 HTTP 下游替身，返回替身文件名。url 带 query，body 是被测服务会发出的请求体原文
+func (c *Case) StubHTTP(method, url, body string, rsp *rpcproxy.HTTPRsp) string {
 	c.t.Helper()
 	file, err := rpcproxy.HTTPStubFile(stubDir, method, url, []byte(body))
 	if err != nil {
@@ -174,16 +174,31 @@ func (c *Case) StubHTTP(method, url, body string, rsp *rpcproxy.HTTPRsp) {
 	} else {
 		req.BodyText = body
 	}
-	c.writeStub(file, strings.ToUpper(method)+" "+url, req, rsp)
+	return c.writeStub(file, strings.ToUpper(method)+" "+url, req, rsp)
 }
 
-func (c *Case) writeStub(file, what string, req, rsp any) {
+func (c *Case) writeStub(file, what string, req, rsp any) string {
 	c.t.Helper()
 	if err := rpcproxy.WriteStub(file, req, rsp); err != nil {
 		c.t.Fatalf("写替身失败: %v", err)
 	}
 	b, _ := os.ReadFile(file)
 	c.append("替身", "**"+filepath.Base(file)+"**："+what+"\n\n```json\n"+string(b)+"\n```")
+	return filepath.Base(file)
+}
+
+// StubHits 这些进程日志里 since 之后命中替身 file 的次数，即被测服务调了几次这个下游
+func StubHits(t *testing.T, procs []string, since time.Time, file string) int {
+	t.Helper()
+	n := 0
+	for _, p := range procs {
+		for _, l := range LogLines(t, p, since, file) {
+			if strings.Contains(l, "rpcproxy cache|hit|") {
+				n++
+			}
+		}
+	}
+	return n
 }
 
 // Exec 在工作区执行一条命令（如起定时任务实例），失败即停
@@ -324,13 +339,13 @@ func LogLines(t *testing.T, ref string, since time.Time, kw string) []string {
 		t.Fatalf("打开日志失败: %v", err)
 	}
 	defer f.Close()
-	from := since.Format("2006-01-02 15:04:05")
+	from := since.Format("2006-01-02 15:04:05.000") // trpc 日志行首的时间格式
 	var out []string
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 1<<20), 1<<20)
 	for sc.Scan() {
 		l := sc.Text()
-		if len(l) >= 19 && l[:19] >= from && strings.Contains(l, kw) {
+		if len(l) >= 23 && l[:23] >= from && strings.Contains(l, kw) {
 			out = append(out, l)
 		}
 	}

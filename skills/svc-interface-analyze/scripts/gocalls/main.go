@@ -177,6 +177,18 @@ func findRoots(cg *callgraph.Graph, needle, mod string, allHits bool) []*callgra
 		}
 		hits = append(hits, n)
 	}
+	// 方法本身和它里面的闭包（名字带 $N）都含 needle 时，只要方法本身
+	if len(hits) > 1 {
+		var named []*callgraph.Node
+		for _, n := range hits {
+			if !strings.Contains(funcName(n.Func), "$") {
+				named = append(named, n)
+			}
+		}
+		if len(named) > 0 {
+			hits = named
+		}
+	}
 	sort.Slice(hits, func(i, j int) bool { return funcName(hits[i].Func) < funcName(hits[j].Func) })
 	return hits
 }
