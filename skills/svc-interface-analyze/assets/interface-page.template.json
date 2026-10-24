@@ -1,0 +1,51 @@
+{
+  "meta": {
+    "service": "{{SERVICE}}",
+    "interface": "{{INTERFACE}}",
+    "entryType": "{{rpc|http|cron}}",
+    "proto": "{{PROTO_PATH}}",
+    "impl": "{{IMPL_PATH}}",
+    "branch": "{{BRANCH}}",
+    "commit": "{{COMMIT}}",
+    "openDepth": 2
+  },
+  "tree": {
+    "t": "{{INTERFACE}}",
+    "type": "root",
+    "note": "一句话说清这个接口对外提供什么能力。",
+    "kids": [
+      {
+        "t": "协议 | {{REQ}} → {{RSP}} | {{PROTO_PATH}}",
+        "type": "proto",
+        "src": "{{PROTO_PATH}}:{{LINE}}",
+        "note": "走哪条路看哪几个请求字段。\n\n响应里哪几个字段前端真的在用。",
+        "req": "message {{REQ}} {\n  ...\n}",
+        "rsp": "message {{RSP}} {\n  ...\n}",
+        "kids": []
+      },
+      {
+        "t": "入口方法 | {{METHOD}}() | {{IMPL_PATH}}",
+        "type": "entry",
+        "src": "{{IMPL_PATH}}:{{LINE}}",
+        "note": "入口做了什么。\n有几条主干分支。",
+        "kids": [
+          {
+            "t": "第一步的动作 | 结果落在哪个变量 | 依赖哪张表或哪个服务",
+            "type": "step",
+            "src": "path/to/file.go:120",
+            "log": "`查小程序配置失败，wx_appid：%s`（repo/wxappdao/api_impl.go:30）",
+            "note": "这一步在做什么。\n为什么要做。",
+            "code": "只留最关键的三到五行",
+            "kids": []
+          }
+        ]
+      }
+    ]
+  },
+  "terms": [
+    {
+      "term": "术语",
+      "meaning": "读这个接口时才搞明白的业务词，写下我的理解。"
+    }
+  ]
+}

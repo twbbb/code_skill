@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+#
+# 分析页服务。没在跑就启动，已经在跑就复用。
+#
+#   analyze_server
+#   analyze_server /path/to/analysis
+#   analyze_server /path/to/foo.json
+#   analyze_server stop
+#
+
+set -euo pipefail
+
+source=$0
+while [ -L "$source" ]; do
+  dir=$(cd "$(dirname "$source")" && pwd)
+  link=$(readlink "$source")
+  case "$link" in
+    /*) source=$link ;;
+    *)  source=$dir/$link ;;
+  esac
+done
+here=$(cd "$(dirname "$source")" && pwd)
+exec "$here/serve.sh" "$@"

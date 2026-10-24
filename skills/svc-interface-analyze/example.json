@@ -1,0 +1,164 @@
+{
+  "meta": {
+    "service": "wxtoken",
+    "interface": "GetAccessToken",
+    "entryType": "rpc",
+    "proto": "stub/wxtoken.proto",
+    "impl": "service/wxtokensvc/service.go",
+    "branch": "main",
+    "commit": "5cbff144e0dbfb5a002ba78f1c7123ee791cb041",
+    "openDepth": 2
+  },
+  "tree": {
+    "t": "GetAccessToken",
+    "type": "root",
+    "note": "给业务后台发某个小程序的 access_token。\n\n先看进程内缓存，再看 Redis 的 wx:token:{wx_appid}，都没有或过期了才去微信 stable_token 换。\n\n换之前拿 wx:token:lock:{wx_appid} 这把锁，多个实例同时来只换一次。表只有 db_wxtoken.t_wx_app。",
+    "kids": [
+      {
+        "t": "协议 | GetAccessTokenReq → GetAccessTokenRsp | stub/wxtoken.proto",
+        "type": "proto",
+        "src": "stub/wxtoken.proto:10",
+        "note": "请求只有 wx_appid。\n\n响应 access_token 和 expire_at（Unix 秒）。错误走 trpc 错误码：4003xxx 是调用方的错，5003xxx 是 wxtoken 或微信的错。",
+        "req": "message GetAccessTokenReq {\n  string wx_appid = 1;\n}",
+        "rsp": "message GetAccessTokenRsp {\n  string access_token = 1;\n  int64 expire_at = 2;\n}"
+      },
+      {
+        "t": "入口方法 | WxTokenImpl.GetAccessToken() | service/wxtokensvc/service.go",
+        "type": "entry",
+        "src": "service/wxtokensvc/service.go:30",
+        "note": "校验参数，交给 token 包取，组响应。",
+        "open": true,
+        "kids": [
+          {
+            "t": "wx_appid 为空 | 返回 4003001 | errcode.ErrParam",
+            "type": "branch",
+            "src": "service/wxtokensvc/service.go:33",
+            "log": "无"
+          },
+          {
+            "t": "取 token | TokenImpl.Get() | logic/token",
+            "type": "step",
+            "src": "logic/token/api_impl.go:57",
+            "open": true,
+            "note": "先进程内缓存，再 Redis，都没有或过期就当场换。",
+            "kids": [
+              {
+                "t": "读进程内缓存 | local[wx_appid] | 进程内 map",
+                "type": "cache",
+                "src": "logic/token/api_impl.go:207",
+                "log": "无",
+                "note": "缓存到 until 那一刻。until 在写入时定：localCacheSeconds 到它的两倍之间随机，且不超过 token 的过期时间。\n\n命中就直接返回，不看 Redis。所以 Redis 里改了 token，最长要等 2 倍 localCacheSeconds 才读得到。"
+              },
+              {
+                "t": "读 Redis | GET wx:token:{wx_appid} | Redis",
+                "type": "cache",
+                "src": "logic/token/api_impl.go:190",
+                "log": "`读 Redis 里的 access_token 失败，wx_appid：%s，错误：%v`（logic/token/api_impl.go:196）；`Redis 里的 access_token 解析不了，当作没有，wx_appid：%s，错误：%v`（:201）",
+                "note": "值是 JSON {token, expireAt}。key 不存在、JSON 坏了、token 为空都当作没有。",
+                "code": "raw, err := l.rdb.Get(ctx, tokenKey(wxAppid)).Bytes()\nif errors.Is(err, goredis.Nil) {\n\treturn nil, nil\n}"
+              },
+              {
+                "t": "Redis 出错 | 返回 5003003 | errcode.ErrInternal",
+                "type": "branch",
+                "src": "logic/token/api_impl.go:62",
+                "log": "见上一步的「读 Redis 里的 access_token 失败」"
+              },
+              {
+                "t": "Redis 里的没过期 | 写进程内缓存后返回 | expireAt > now",
+                "type": "branch",
+                "src": "logic/token/api_impl.go:65",
+                "log": "无",
+                "note": "只看过没过期，不看快不快过期。快过期的由定时任务换。"
+              },
+              {
+                "t": "查小程序配置 | getApp → GetEnabled | db_wxtoken.t_wx_app",
+                "type": "db",
+                "src": "logic/token/api_impl.go:177",
+                "sql": "SELECT * FROM t_wx_app WHERE f_wx_appid = ? AND f_status = 0 LIMIT 1",
+                "log": "`读 t_wx_app 失败，wx_appid：%s，错误：%v`（logic/token/api_impl.go:180）",
+                "note": "实现在 repo/wxappdao/api_impl.go:25。查询出错返回 5003003；没有这行或已停用返回 4003003，这种情况不打日志。"
+              },
+              {
+                "t": "换 token | renew(row, expired) | 锁 + 微信",
+                "type": "step",
+                "src": "logic/token/api_impl.go:118",
+                "open": true,
+                "note": "need 是 expired：拿到锁后 Redis 里的还没过期就不换。",
+                "kids": [
+                  {
+                    "t": "抢锁 | wx:token:lock:{wx_appid} | redislock",
+                    "type": "loop",
+                    "src": "logic/token/api_impl.go:122",
+                    "log": "`等刷新锁超时，wx_appid：%s`（logic/token/api_impl.go:128）",
+                    "note": "锁时长 lockTTL = 2×wx.timeoutMs + 5 秒。\n\n拿不到锁时每 100 毫秒看一次 Redis：别人已经换好了就直接用别人的（写进程内缓存，不打日志）。\n\n等满 lockWait = wx.timeoutMs + 2 秒还拿不到，返回 5003004。调用方 ctx 取消也返回 5003004。",
+                    "code": "for !l.lock.Lock(ctx, key, l.lockTTL) {\n\tif t, err := l.fromRedis(ctx, wxAppid); err == nil && !need(t, time.Now().Unix()) {"
+                  },
+                  {
+                    "t": "附注 · 放锁 | defer UnLock | context.WithoutCancel",
+                    "type": "step",
+                    "src": "logic/token/api_impl.go:138",
+                    "log": "无",
+                    "note": "调用方超时了也解锁，不然锁要白占到 lockTTL。"
+                  },
+                  {
+                    "t": "拿到锁后再读 Redis | GET wx:token:{wx_appid} | Redis",
+                    "type": "cache",
+                    "src": "logic/token/api_impl.go:140",
+                    "log": "同「读 Redis」",
+                    "note": "读出错返回 5003003；已经被别人换好（没过期）就直接返回，不调微信。"
+                  },
+                  {
+                    "t": "解 secret | decryptSecret() | secretKeys[f_key_ver]",
+                    "type": "step",
+                    "src": "logic/token/api_impl.go:228",
+                    "log": "`主密钥版本没配，wx_appid：%s，f_key_ver：%d`（logic/token/api_impl.go:231）；`secret 解不开，wx_appid：%s，f_key_ver：%d，错误：%v`（:236）",
+                    "note": "按行上的 f_key_ver 取 app.yaml 的 secretKeys，用 AES-GCM 解 f_secret_enc（entity/secretbox/secretbox.go:30）。\n\n主密钥版本没配、密文坏了都返回 5003001。"
+                  },
+                  {
+                    "t": "调微信 | POST /cgi-bin/stable_token | wx.baseURL",
+                    "type": "rpc",
+                    "src": "logic/wxapi/api_impl.go:41",
+                    "req": "POST {wx.baseURL}/cgi-bin/stable_token\nContent-Type: application/json\n\n{\"grant_type\":\"client_credential\",\"appid\":\"<wx_appid>\",\"secret\":\"<明文 secret>\",\"force_refresh\":false}",
+                    "rsp": "{\"access_token\":\"...\",\"expires_in\":7200}  或  {\"errcode\":40013,\"errmsg\":\"...\"}",
+                    "log": "`调微信失败，path：%s，错误：%v`（logic/wxapi/api_impl.go:79）；`stable_token 响应解析失败，wx_appid：%s，HTTP：%d，错误：%v`（:49）；`stable_token 失败，wx_appid：%s，errcode：%d，errmsg：%s`（:54）",
+                    "note": "普通模式，不强制刷新，不会把别的实例手里的 token 作废。\n\n发请求走 WxApiImpl.Do（:62），http.Client 套了 rpcproxy.Transport，本地测试时读替身。\n\n网络错误、响应不是 JSON、errcode 非 0、token 为空、expires_in 不大于 0，都返回 5003002。"
+                  },
+                  {
+                    "t": "写 Redis | SET wx:token:{wx_appid} EX expires_in | Redis",
+                    "type": "cache",
+                    "src": "logic/token/api_impl.go:158",
+                    "log": "`access_token 写 Redis 失败，wx_appid：%s，错误：%v`（logic/token/api_impl.go:159）",
+                    "code": "t = &Token{Token: tok, ExpireAt: time.Now().Unix() + expiresIn}\nraw, _ := json.Marshal(t)\nl.rdb.Set(ctx, tokenKey(wxAppid), raw, time.Duration(expiresIn)*time.Second)",
+                    "note": "TTL 和微信给的有效秒数一样。写失败返回 5003003，这次换到的 token 就丢了。"
+                  },
+                  {
+                    "t": "写进程内缓存并返回 | toLocal | 换新完成",
+                    "type": "step",
+                    "src": "logic/token/api_impl.go:162",
+                    "log": "`access_token 已换新，wx_appid：%s，有效秒数：%d`（logic/token/api_impl.go:163）"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "t": "组响应 | GetAccessTokenRsp | token、expireAt",
+            "type": "build",
+            "src": "service/wxtokensvc/service.go:40",
+            "log": "无"
+          }
+        ]
+      }
+    ]
+  },
+  "terms": [
+    {
+      "term": "进程内缓存",
+      "meaning": "每个 wxtoken 进程自己的 map，缓存 localCacheSeconds 到两倍之间的随机时长，减少读 Redis。"
+    },
+    {
+      "term": "普通模式",
+      "meaning": "stable_token 的 force_refresh=false：token 没过期时微信原样返回，不作废别人手里的。"
+    }
+  ]
+}

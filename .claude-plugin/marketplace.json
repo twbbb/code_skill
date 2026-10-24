@@ -1,0 +1,15 @@
+{
+  "name": "code-skill",
+  "owner": {
+    "name": "westian"
+  },
+  "description": "本地技能市场，只有 code-skill 一个插件。",
+  "plugins": [
+    {
+      "name": "code-skill",
+      "source": "./",
+      "description": "自建服务的开发与测试技能：单服务接口分析、生成用例、本地环境准备、本地执行用例并留证据。",
+      "category": "engineering"
+    }
+  ]
+}

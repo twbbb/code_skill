@@ -1,0 +1,668 @@
+/* interfaces-analyze 左右展开调用链脑图 · 配色沿用 teach workspace 的 style.css */
+
+@import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap');
+
+:root {
+  --bg: #fffff8;
+  --ink: #111;
+  --ink-dim: #555;
+  --rule: #ccc;
+  --accent: #a00000;
+  --code-bg: #f4f0e6;
+
+  --t-proto:  #444444;
+  --t-entry:  #6a4c93;
+  --t-branch: #b08900;
+  --t-db:     #2d6a4f;
+  --t-rpc:    #1a5f7a;
+  --t-cache:  #c2410c;
+  --t-loop:   #7a5195;
+  --t-build:  #555555;
+  --t-step:   #9a9a8f;
+
+  --node-w: 232px;
+  --col-gap: 48px;
+  --row-gap: 14px;
+  --panel-w: clamp(280px, 26vw, 400px);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Merriweather', Georgia, 'Times New Roman', serif;
+}
+
+.mm-boot-msg {
+  margin: 48px 24px;
+  max-width: 40em;
+  font-size: 16px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.mm-boot-msg--err { color: var(--accent); }
+
+/* ---------- 页头 ---------- */
+
+.mm-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  padding: 0.7rem 1.1rem;
+  border-bottom: 1px solid var(--ink);
+  font-size: 0.82rem;
+  color: var(--ink-dim);
+}
+.mm-head h1 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--ink);
+}
+.mm-head .mm-meta-slot {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  align-items: baseline;
+}
+.mm-head .mm-meta { font-family: 'JetBrains Mono', monospace; font-size: 0.74rem; }
+.mm-head .mm-btn { flex: none; }
+.mm-head a { color: var(--accent); text-decoration: none; border-bottom: 1px dotted var(--accent); }
+.mm-head .mm-spacer { flex: 1; }
+.mm-crumb {
+  flex: 1 0 100%;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.74rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.mm-crumb span { color: var(--ink); }
+.mm-dirs { font-family: 'JetBrains Mono', monospace; font-size: 0.76rem; }
+
+.mm-btn {
+  font-family: inherit;
+  font-size: 0.76rem;
+  padding: 0.22rem 0.62rem;
+  background: transparent;
+  color: var(--ink-dim);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.mm-btn:hover { color: var(--ink); border-color: var(--ink-dim); }
+.mm-btn:disabled { opacity: 0.4; cursor: default; }
+.mm-btn.is-dirty { color: var(--accent); border-color: var(--accent); }
+.mm-btn--danger:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+.mm-save-msg { font-size: 0.72rem; color: var(--t-db); }
+
+/* ---------- 图例 ---------- */
+
+.mm-legend {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.45rem 1.1rem;
+  border-bottom: 1px solid var(--rule);
+  font-size: 0.72rem;
+  color: var(--ink-dim);
+}
+.mm-legend span { display: inline-flex; align-items: center; gap: 0.3rem; }
+.mm-legend i {
+  width: 10px; height: 10px; border-radius: 2px; display: inline-block;
+}
+
+/* ---------- 主体 ---------- */
+
+.mm-body {
+  display: flex;
+  height: 82vh;
+  border-bottom: 1px solid var(--rule);
+}
+
+.mm-stage {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+.mm-canvas-wrap {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  cursor: grab;
+}
+.mm-sizer { position: relative; }
+.mm-zoom {
+  position: absolute;
+  z-index: 5;
+  left: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: rgba(255, 255, 248, 0.94);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+.mm-zoom .mm-btn {
+  font-family: 'JetBrains Mono', monospace;
+  min-width: 1.8rem;
+  padding: 0.16rem 0.35rem;
+  line-height: 1.2;
+}
+.mm-zoom .mm-zoom-pct { min-width: 3.4rem; }
+html.mm-panning,
+html.mm-panning * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+
+.mm-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.mm-canvas svg {
+  position: absolute;
+  top: 0; left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.mm-canvas svg path {
+  fill: none;
+  stroke: #b9b9ad;
+  stroke-width: 1.3;
+}
+
+/* ---------- 节点 ---------- */
+
+.mm-node {
+  position: absolute;
+  width: var(--node-w);
+  padding: 0.42rem 0.6rem 0.42rem 0.72rem;
+  background: #fff;
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--t-step);
+  border-radius: 5px;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+.mm-node:hover { border-color: var(--ink-dim); }
+.mm-node.is-sel {
+  border-color: var(--ink);
+  background: #fdfbef;
+  box-shadow: 0 0 0 2px rgba(17,17,17,0.12);
+}
+
+.mm-node .mm-title { display: block; }
+/* 标题三段：动作 | 落点 | 依赖 */
+.mm-node .mm-act { font-weight: 700; }
+.mm-node .mm-slot {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--accent);
+}
+.mm-node .mm-dep {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--ink-dim);
+}
+
+.mm-node.t-root {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+  border-left-color: var(--ink);
+  font-size: 0.92rem;
+}
+.mm-node.t-root .mm-act { font-weight: 700; }
+
+.mm-node.t-proto  { border-left-color: var(--t-proto); }
+.mm-node.t-entry  { border-left-color: var(--t-entry); }
+.mm-node.t-branch { border-left-color: var(--t-branch); }
+.mm-node.t-db     { border-left-color: var(--t-db); }
+.mm-node.t-rpc    { border-left-color: var(--t-rpc); }
+.mm-node.t-cache  { border-left-color: var(--t-cache); }
+.mm-node.t-loop   { border-left-color: var(--t-loop); }
+.mm-node.t-build  { border-left-color: var(--t-build); }
+
+/* 证据标记：有 code/sql/req 的节点右上角一个点 */
+.mm-node .mm-flags {
+  position: absolute;
+  top: -6px; right: -6px;
+  display: flex;
+  gap: 2px;
+}
+.mm-node .mm-flag {
+  width: 13px; height: 13px;
+  border-radius: 50%;
+  font-size: 8px;
+  line-height: 13px;
+  text-align: center;
+  color: #fff;
+  font-family: 'JetBrains Mono', monospace;
+}
+.mm-flag--ev { background: var(--t-db); }
+.mm-flag--todo { background: var(--accent); }
+.mm-flag--warn { background: #d97706; }
+.mm-flag--nolog { background: #6b7280; }
+
+/* 折叠按钮 */
+.mm-toggle {
+  position: absolute;
+  right: -11px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  border: 1px solid var(--rule);
+  background: var(--bg);
+  color: var(--ink-dim);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+  cursor: pointer;
+  z-index: 2;
+}
+.mm-toggle:hover { color: var(--ink); border-color: var(--ink-dim); }
+.mm-toggle .mm-cnt { font-size: 9px; }
+
+/* ---------- 左右分栏拖动手柄 ---------- */
+
+.mm-split {
+  flex: none;
+  width: 8px;
+  margin: 0 -4px;
+  cursor: col-resize;
+  position: relative;
+  z-index: 4;
+}
+.mm-split::before {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  left: 3px;
+  width: 2px;
+  background: transparent;
+}
+.mm-split:hover::before,
+html.mm-resizing .mm-split::before {
+  background: var(--ink);
+}
+html.mm-resizing,
+html.mm-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+/* ---------- 右侧详情面板 ---------- */
+
+.mm-panel {
+  width: var(--panel-w);
+  flex: none;
+  border-left: 1px solid var(--ink);
+  overflow: auto;
+  padding: 1rem 1.1rem 3rem;
+  font-size: 0.84rem;
+}
+.mm-panel h2 {
+  margin: 0 0 0.2rem;
+  font-size: 1rem;
+  line-height: 1.3;
+}
+.mm-panel-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.15rem;
+}
+.mm-panel-bar h2 { flex: 1; min-width: 0; }
+.mm-panel-bar input { flex: 1; min-width: 0; }
+.mm-editable { cursor: text; border-radius: 3px; }
+.mm-panel .mm-editable:hover { box-shadow: inset 0 0 0 1px var(--rule); }
+.mm-kind.mm-editable { cursor: pointer; }
+.mm-kind.mm-editable:hover { box-shadow: 0 0 0 1px rgba(255,255,255,0.7); }
+.mm-panel-extras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 1.1rem;
+}
+.mm-add, .mm-more { position: relative; }
+.mm-add summary, .mm-more summary {
+  list-style: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.76rem;
+  padding: 0.22rem 0.62rem;
+  color: var(--ink-dim);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: transparent;
+}
+.mm-add summary::-webkit-details-marker,
+.mm-more summary::-webkit-details-marker { display: none; }
+.mm-add summary:hover, .mm-more summary:hover { color: var(--ink); border-color: var(--ink-dim); }
+.mm-more summary { line-height: 1; padding: 0.22rem 0.5rem; }
+.mm-add-list, .mm-more-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  z-index: 6;
+  min-width: 9rem;
+  padding: 0.35rem;
+  background: var(--bg);
+  border: 1px solid var(--ink);
+  border-radius: 3px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.mm-more-menu { left: auto; right: 0; }
+.mm-add-list .mm-btn, .mm-more-menu .mm-btn { text-align: left; }
+.mm-more-menu .mm-check { padding: 0.15rem 0.2rem; }
+.mm-panel .mm-kind {
+  display: inline-block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  padding: 0.05em 0.45em;
+  border-radius: 3px;
+  color: #fff;
+  margin-bottom: 0.6rem;
+}
+.mm-panel h3 {
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-dim);
+  margin: 1.1rem 0 0.3rem;
+  font-style: normal;
+}
+.mm-panel pre {
+  background: var(--code-bg);
+  border-left: 2px solid var(--rule);
+  padding: 0.5rem 0.6rem;
+  overflow-x: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.mm-panel .mm-src {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--accent);
+  word-break: break-all;
+}
+.mm-panel .mm-note {
+  white-space: pre-line;
+  line-height: 1.65;
+  margin: 0;
+}
+.mm-panel .mm-todo {
+  background: #fff4e0;
+  border-left: 3px solid #b08900;
+  padding: 0.5rem 0.6rem;
+}
+.mm-panel .mm-warn {
+  background: #fdece0;
+  border-left: 3px solid #d97706;
+  padding: 0.5rem 0.6rem;
+}
+.mm-panel .mm-empty { color: var(--ink-dim); font-style: italic; }
+
+.mm-field { margin: 0.75rem 0 0; }
+.mm-field > label {
+  display: block;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-dim);
+  margin: 0 0 0.3rem;
+  font-style: normal;
+}
+.mm-panel input[type="text"],
+.mm-panel input[type="number"],
+.mm-panel select,
+.mm-panel textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.84rem;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--ink);
+  border-radius: 3px;
+  padding: 0.35rem 0.45rem;
+}
+.mm-panel input:focus,
+.mm-panel select:focus,
+.mm-panel textarea:focus {
+  outline: none;
+}
+.mm-panel textarea {
+  min-height: 4.5rem;
+  resize: vertical;
+  line-height: 1.55;
+}
+.mm-panel textarea.mm-pre,
+.mm-panel input.mm-src {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  background: var(--code-bg);
+}
+.mm-sample { outline: none; }
+.mm-sample:focus { box-shadow: inset 0 0 0 1px var(--rule); }
+.mm-sample-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  color: var(--ink-dim);
+}
+.mm-shot { margin-top: 0.4rem; }
+.mm-shot img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--rule);
+  background: #fff;
+  cursor: zoom-in;
+}
+.mm-shot .mm-btn { margin-top: 0.3rem; }
+.mm-shot-slot { min-height: 0; }
+.mm-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(17, 17, 17, 0.72);
+  cursor: zoom-out;
+}
+.mm-lightbox img {
+  max-width: 96vw;
+  max-height: 92vh;
+  width: auto;
+  height: auto;
+  background: #fff;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+.mm-panel textarea.mm-todo { background: #fff4e0; }
+.mm-panel textarea.mm-warn { background: #fdece0; }
+.mm-checks { display: flex; flex-wrap: wrap; gap: 0.8rem; }
+.mm-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--ink);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ---------- 术语表 ---------- */
+
+.mm-terms {
+  border-top: 1px solid var(--ink);
+  padding: 1rem 1.1rem 2rem;
+  font-size: 0.84rem;
+}
+.mm-terms h2 { font-size: 1rem; margin: 0 0 0.5rem; }
+.mm-terms dt { font-weight: 700; margin-top: 0.6rem; }
+.mm-terms dd { margin: 0.15rem 0 0; color: var(--ink-dim); }
+.mm-terms .mm-editable { cursor: text; }
+.mm-terms .mm-editable:hover { box-shadow: inset 0 0 0 1px var(--rule); }
+.mm-term-row {
+  display: grid;
+  grid-template-columns: 8.5rem 1fr auto;
+  gap: 0.4rem;
+  margin: 0.4rem 0;
+  align-items: center;
+}
+.mm-term-row input {
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.84rem;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0.3rem 0.4rem;
+}
+
+/* ---------- 清单页 ---------- */
+
+.mm-list { padding: 1.2rem 1.4rem 4rem; }
+.mm-list table { border-collapse: collapse; width: 100%; font-size: 0.8rem; }
+.mm-list th, .mm-list td {
+  text-align: left;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+.mm-list th { border-bottom: 2px solid var(--ink); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.mm-list td.mono, .mm-list td .mono { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; }
+.mm-list tr.has-page td:first-child { border-left: 3px solid var(--t-db); }
+.mm-list a { color: var(--accent); text-decoration: none; border-bottom: 1px dotted var(--accent); }
+.mm-list h2 { font-size: 1.1rem; margin: 1.8rem 0 0.4rem; }
+.mm-list .mm-svc-meta { font-size: 0.76rem; color: var(--ink-dim); font-family: 'JetBrains Mono', monospace; }
+
+/* ---------- 首页与拖入文件 ---------- */
+
+.mm-home {
+  max-width: 44rem;
+  margin: 2.6rem auto;
+  padding: 0 1.4rem 4rem;
+}
+.mm-drop {
+  border: 1.5px dashed var(--ink-dim);
+  border-radius: 6px;
+  padding: 2.8rem 1.6rem;
+  text-align: center;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.12s, background-color 0.12s, box-shadow 0.12s;
+}
+.mm-drop:hover,
+.mm-drop:focus-visible,
+.mm-drop.is-over,
+html.mm-file-drag .mm-drop {
+  border-color: var(--accent);
+  background: #fdfbef;
+  box-shadow: 0 0 0 3px rgba(160, 0, 0, 0.08);
+  outline: none;
+}
+.mm-drop-title {
+  margin: 0 0 0.55rem;
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.mm-drop-sub {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--ink-dim);
+  line-height: 1.5;
+}
+.mm-drop code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85em;
+  background: var(--code-bg);
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+}
+.mm-path-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}
+.mm-path-form input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.78rem;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 0.42rem 0.6rem;
+}
+.mm-path-form input[type="text"]:focus {
+  border-color: var(--ink);
+  outline: none;
+}
+.mm-path-form .mm-btn {
+  padding: 0.42rem 0.95rem;
+  font-size: 0.8rem;
+}
+.mm-drop-msg {
+  margin: 0.8rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+.mm-home-help {
+  margin: 1.8rem 0 0;
+  padding: 0.75rem 0.9rem;
+  background: var(--code-bg);
+  border-left: 2px solid var(--rule);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.74rem;
+  line-height: 1.65;
+  color: var(--ink-dim);
+}
+.mm-home-help a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--accent);
+}
+html.mm-file-drag body::after {
+  content: '松开打开 /view?json=路径';
+  position: fixed;
+  inset: 10px;
+  z-index: 40;
+  pointer-events: none;
+  border: 2px dashed var(--accent);
+  border-radius: 6px;
+  background: rgba(255, 255, 248, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+html.mm-file-drag body.mm-has-drop-box::after {
+  display: none;
+}

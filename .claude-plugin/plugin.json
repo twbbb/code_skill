@@ -1,0 +1,15 @@
+{
+  "name": "code-skill",
+  "version": "0.1.0",
+  "description": "自建服务的开发与测试技能：单服务接口分析、生成用例、本地环境准备、本地执行用例并留证据。",
+  "author": {
+    "name": "westian"
+  },
+  "keywords": ["testing", "trpc", "go", "local-test"],
+  "skills": [
+    "./skills/svc-interface-analyze",
+    "./skills/svc-gen-test-case",
+    "./skills/svc-local-env",
+    "./skills/svc-local-test"
+  ]
+}

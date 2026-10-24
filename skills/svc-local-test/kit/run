@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# 执行本地用例。标准脚本，由 svc-local-test 维护，不在工作区里改。先 localstart/startserver.sh start，再：
+#   ./run env            环境自检
+#   ./run 01 02a         执行指定用例；./run all 全部；--round <轮> 续跑同一轮，--force 重跑已有证据的用例
+#   ./run --list         列出用例
+set -euo pipefail
+here=$(cd "$(dirname "$0")" && pwd)
+if [[ "${1:-}" == env ]]; then
+	exec python3 "$here/scripts/run_case.py" --env
+fi
+exec python3 "$here/scripts/run_case.py" "$@"
