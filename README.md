@@ -30,3 +30,9 @@ claude plugin install code-skill@code-skill
 | [svc-local-test](skills/svc-local-test/SKILL.md) | 按用例文档执行，取证、判定、回写结果 | 手动或 flow |
 
 「手动」的技能设了 `disable-model-invocation`，不占上下文，敲名字就能单独用。
+
+### 生成 GORM model
+
+| 技能 | 做什么 | 触发 |
+|---|---|---|
+| [svc-sql2gorm](skills/svc-sql2gorm/SKILL.md) | 用 `sql2gorm -r` 把一张表合并进 model 文件 | 自动 |

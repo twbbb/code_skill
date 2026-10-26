@@ -19,6 +19,7 @@
     "./skills/svc-local-test",
     "./skills/svc-implement",
     "./skills/svc-implement-spec",
-    "./skills/svc-code-review"
+    "./skills/svc-code-review",
+    "./skills/svc-sql2gorm"
   ]
 }
