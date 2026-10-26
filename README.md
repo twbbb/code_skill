@@ -5,11 +5,11 @@
 ## 安装
 
 ```bash
-claude plugin marketplace add twbbb/code_skill      # 或本地目录：claude plugin marketplace add <code_skill 目录>
-claude plugin install code-skill@code-skill
+tclaude plugin marketplace add twbbb/code_skill      # 或本地目录：claude plugin marketplace add <code_skill 目录>
+tclaude plugin install code-skill@code-skill
 ```
 
-改了技能以后执行 `claude plugin marketplace update code-skill`，再重开会话。
+改了技能以后执行 `tclaude plugin marketplace update code-skill`，再重开会话。
 
 ## 技能
 
