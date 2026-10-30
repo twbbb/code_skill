@@ -10,7 +10,7 @@ If the user passes a ticket reference, fetch it from the issue tracker and state
 
 Note the current `HEAD` before you start: it is the fixed point for every review below.
 
-1. **Implement.** Run typechecking (`go build ./... && go vet ./...`) regularly, and the existing test suite once at the end. Commit your work to the current branch.
+1. **Implement.** Call the Skill tool with "svc-coding-standards" before writing code, and follow it. Run typechecking (`go build ./... && go vet ./...`) regularly, and the existing test suite once at the end. Commit your work to the current branch.
 
 2. **Test.** Call the Skill tool with "svc-local-test-flow" to start the service locally and test it end to end: it generates cases from the committed code, stops for the user to confirm them, prepares the local environment, and runs the cases with evidence. Fix the failures it reports, commit the fixes, and call "svc-local-test-flow" again (it picks the 同步 route for changed code).
    Done when every case passes, or the rest are blocked on the user.

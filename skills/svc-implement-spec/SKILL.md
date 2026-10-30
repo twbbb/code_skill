@@ -28,6 +28,7 @@ Local testing runs only on the integration branch, from the main agent: `svc-loc
 
 4. Use **implementer subagents** to implement each ticket, each in its own worktree on its own branch. Each implementer subagent:
    - confirms its worktree is based on the integration branch before starting, and resets onto it if not;
+   - calls the Skill tool with `svc-coding-standards` before writing code, and follows it;
    - builds the ticket, running typechecking (`go build ./... && go vet ./...`) regularly and the existing test suite once at the end;
    - merges the integration branch tip into its own branch before reporting done.
 

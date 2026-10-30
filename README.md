@@ -9,7 +9,7 @@ tclaude plugin marketplace add twbbb/code_skill      # 或本地目录：claude 
 tclaude plugin install code-skill@code-skill
 ```
 
-改了技能以后执行 `tclaude plugin marketplace update code-skill`，再重开会话。
+改了 `skills/` 以后跑 `./script/sync.sh`：刷新 Claude 插件，并把每个技能软链到 `~/.cursor/skills/`。Claude 要重开会话。
 
 ## 技能
 
@@ -30,6 +30,12 @@ tclaude plugin install code-skill@code-skill
 | [svc-local-test](skills/svc-local-test/SKILL.md) | 按用例文档执行，取证、判定、回写结果 | 手动或 flow |
 
 「手动」的技能设了 `disable-model-invocation`，不占上下文，敲名字就能单独用。
+
+### 编码规范
+
+| 技能 | 做什么 | 触发 |
+|---|---|---|
+| [svc-coding-standards](skills/svc-coding-standards/SKILL.md) | Go 服务编码规范，分架构、编码、数据库三块。写、改、审代码前读 | 自动，svc-implement、svc-implement-spec、svc-code-review 也会读 |
 
 ### 生成 GORM model
 
