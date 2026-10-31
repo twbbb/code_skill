@@ -43,6 +43,12 @@ tclaude plugin install code-skill@code-skill
 |---|---|---|
 | [svc-deploy](skills/svc-deploy/SKILL.md) | 把服务或小程序接入发布台（code_knowledge 的 `02_project/dev_tool/deploy`）。接入后的查看和发布用 code_knowledge 的 `01_skill/base_skill/skills/fabutai` | 自动 |
 
+### 小程序调试
+
+| 技能 | 做什么 | 触发 |
+|---|---|---|
+| [mini-h5-debug](skills/mini-h5-debug/SKILL.md) | 用 wxa-runner 在浏览器里跑原生小程序，后台连本机，`wx.login` 走 wxtoken 的 `jscode2session` 替身登录 | 自动 |
+
 ### 生成 GORM model
 
 | 技能 | 做什么 | 触发 |

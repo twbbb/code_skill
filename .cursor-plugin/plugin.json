@@ -22,6 +22,7 @@
     "./skills/svc-code-review",
     "./skills/svc-sql2gorm",
     "./skills/svc-coding-standards",
-    "./skills/svc-deploy"
+    "./skills/svc-deploy",
+    "./skills/mini-h5-debug"
   ]
 }
