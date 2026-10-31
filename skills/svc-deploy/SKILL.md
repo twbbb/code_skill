@@ -27,6 +27,7 @@ Go 服务（`kind: go`）走「接入一个服务」。小程序和小游戏（`
 4. **建 `config/`。** 原来的配置用 `git mv` 移进 `config/local/`，保留历史。`config/server/<地域>/` 从本机配置复制后改：端口换 `${node_port}`，监控端口换 `${node_metrics_port}`，本机地址换线上内网地址，密码、token、DSN 换成变量。变量名是 `<地域>_<服务>_<用途>`，几个服务共用的（同一个 Redis）省掉服务名，如 `gz_redis_password`；先在密钥表里找有没有现成的键。服务的 `.gitignore` 只忽略根目录的文件（写 `/app.yaml`），`config/` 下的才进得了 git。
    完成：线上配置里没有明文密钥；`git check-ignore -v config/server/<地域>/app.yaml` 没有输出。
 5. **写密钥表。** 新变量加进 `t_secret`（`f_name`、`f_value`），值从线上节点现有配置或云控制台取；模板里带引号的地方值不带引号。操作密钥表时只按键名读写，输出里只出现键名。
+   服务要一个新的 MySQL 库时，用 `scripts/create_cdb_db.py` 在腾讯云实例上建库、建账号，DSN 直接写进密钥表：`python3 scripts/create_cdb_db.py --instance <实例ID> --db db_<服务> --secret <地域>_<服务>_mysql_dsn`。库名以 `db_` 开头，账号默认是库名去掉 `db_`，只给这个库的权限。账号已经存在时脚本不改密码、不写密钥表。建表用服务自己 `sql/` 下的脚本另外执行。
    完成：线上配置里每个变量在密钥表里都有键。
 6. **写 `deploy.yaml`。** 照 `docs/发布声明.md`。迁移已经在线上跑的服务时，`unit`、`dir`、`bin` 写成线上现有的值（默认是节点名、`/home/ubuntu/apps/<节点名>`、服务名），否则会起出第二份进程抢端口。发布前会跑 `go test`（`testcase` 下的集成用例不跑），过不了先修；确实修不了才写 `env: { SKIP_TEST: "1" }`，上面加一行注释说为什么。
    完成：在服务目录里 `go test` 能过，或者已写 `SKIP_TEST` 并注释了原因。
