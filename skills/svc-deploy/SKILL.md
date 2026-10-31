@@ -32,11 +32,11 @@ Go 服务（`kind: go`）走「接入一个服务」。小程序和小游戏（`
    完成：在服务目录里 `go test` 能过，或者已写 `SKIP_TEST` 并注释了原因。
 7. **登记到清单。** `t_service_dir` 加上服务目录；地域有整套发布顺序的，按依赖插进 `t_region_order`（`f_region`、`f_seq`、`f_service_key`），被调方在前。页面要归到某一块的，加 `t_group_service`。迁移来的服务把 `t_legacy_project` / `t_legacy_service` / `t_legacy_node` 里的旧条目删掉。
    完成：`t_service_dir` 里有这个服务目录；它在每个整套发布顺序里都排在它调用的服务之后；旧格式表里没有它。
-8. **验证加载。** 按 fabutai skill 的 A 节重启发布台，登记才会重读。用 `search_service` 找到这个服务，再用 `get_service`、`get_status` 看各节点；新节点还没发过时，状态里没有进程是正常的。
+8. **验证加载。** 在发布台目录跑 `./script/install-macos.sh` 重启发布台，登记才会重读；Cursor 里拿到的工具不对时，在 MCP 设置里重连 fabutai。用 `search_service` 找到这个服务，再用 `get_service`、`get_status` 看各节点；新节点还没发过时，状态里没有进程是正常的。
    完成：`search_service` 能 UNIQUE 到这个服务，没有 `error`，`get_service` 里 `can_deploy` 为 true。
 9. **发布台之外的事。** 见 `docs/发布声明.md` 的「还要手动做的」：挂在网关后面的服务，要在 `db_gateway.t_gw_service` / `t_gw_method` 里加行，写成项目 `sql/` 下的脚本；http 入口要改 nginx upstream；跨机器调用要在轻量服务器防火墙放行内网入站；用新机器要先配好 ssh 别名和免密 sudo。
    完成：上面每一项都标了「已做」或「不涉及」。
-10. **第一次发布。** 按 fabutai skill 的 D 节做，第 9 步标「已做」的写进 `checklist`。
+10. **第一次发布。** 按 fabutai skill 的「改线上」做，第 9 步标「已做」的写进 `checklist`。
 11. **收尾。** 删掉旧的发布脚本和旧配置，在整个工作区搜一遍引用它们的地方，一起改掉。
    完成：工作区里搜不到旧脚本名和旧配置路径。
 
@@ -54,4 +54,4 @@ Go 服务（`kind: go`）走「接入一个服务」。小程序和小游戏（`
 5. **验证加载。** 同 Go 服务的第 8 步。
    完成：`search_service` 能 UNIQUE 到这个服务，没有 `error`，`get_service` 里 `can_deploy` 为 true，`can_config` 为 false。
 
-第一次上传按 fabutai skill 的 D 节做。旧的 `deploy_mini.sh` 留到第一次用发布台上传成功后再删。
+第一次上传按 fabutai skill 的「改线上」做。旧的 `deploy_mini.sh` 留到第一次用发布台上传成功后再删。
