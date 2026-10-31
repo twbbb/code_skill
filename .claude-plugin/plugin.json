@@ -21,6 +21,7 @@
     "./skills/svc-implement-spec",
     "./skills/svc-code-review",
     "./skills/svc-sql2gorm",
-    "./skills/svc-coding-standards"
+    "./skills/svc-coding-standards",
+    "./skills/svc-deploy"
   ]
 }

@@ -37,6 +37,12 @@ tclaude plugin install code-skill@code-skill
 |---|---|---|
 | [svc-coding-standards](skills/svc-coding-standards/SKILL.md) | Go 服务编码规范，分架构、编码、数据库三块。写、改、审代码前读 | 自动，svc-implement、svc-implement-spec、svc-code-review 也会读 |
 
+### 发布
+
+| 技能 | 做什么 | 触发 |
+|---|---|---|
+| [svc-deploy](skills/svc-deploy/SKILL.md) | 把服务或小程序接入发布台（code_knowledge 的 `02_project/dev_tool/deploy`）。接入后的查看和发布用 code_knowledge 的 `01_skill/base_skill/skills/fabutai` | 自动 |
+
 ### 生成 GORM model
 
 | 技能 | 做什么 | 触发 |
