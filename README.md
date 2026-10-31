@@ -9,7 +9,7 @@ tclaude plugin marketplace add twbbb/code_skill      # 或本地目录：claude 
 tclaude plugin install code-skill@code-skill
 ```
 
-改了 `skills/` 以后跑 `./script/sync.sh`：刷新 Claude 插件，并把每个技能软链到 `~/.cursor/skills/`。Claude 要重开会话。
+改了 `skills/` 以后跑 `./script/sync.sh`：刷新 Claude 插件，并把每个技能软链到 `~/.cursor/skills/`、`~/.claude/skills/`、`~/.tclaude/skills/`。Claude 要重开会话。
 
 ## 技能
 

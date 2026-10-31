@@ -5,6 +5,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CURSOR_SKILLS="${CURSOR_SKILLS:-$HOME/.cursor/skills}"
+CLAUDE_SKILLS="${CLAUDE_SKILLS:-$HOME/.claude/skills}"
+TCLAUDE_SKILLS="${TCLAUDE_SKILLS:-$HOME/.tclaude/skills}"
 PLUGIN_NAME="code-skill"
 MARKETPLACE_NAME="code-skill"
 
@@ -91,16 +93,18 @@ sync_claude() {
   "$cli" plugin install "${PLUGIN_NAME}@${MARKETPLACE_NAME}" -y
 }
 
-sync_cursor() {
-  echo "== Cursor 技能  ${CURSOR_SKILLS}"
-  mkdir -p "$CURSOR_SKILLS"
+# 把仓库里的技能软链到一个用户 skill 目录，仓库里已经删掉的链也拿掉。
+sync_user_skills() {
+  local dest_dir="$1"
+  echo "== 用户技能  ${dest_dir}"
+  mkdir -p "$dest_dir"
   shopt -s nullglob
 
   local src name dest current
   while IFS= read -r name; do
     [[ -n "$name" ]] || continue
     src="${ROOT}/skills/${name}"
-    dest="${CURSOR_SKILLS}/${name}"
+    dest="${dest_dir}/${name}"
     if [[ -L "$dest" ]]; then
       current="$(readlink "$dest")"
       if [[ "$current" == "$src" ]]; then
@@ -118,7 +122,7 @@ sync_cursor() {
   done < <(skill_names)
 
   local p target base
-  for p in "$CURSOR_SKILLS"/*; do
+  for p in "$dest_dir"/*; do
     [[ -L "$p" ]] || continue
     target="$(readlink "$p")"
     case "$target" in
@@ -138,7 +142,12 @@ main() {
   cli="$(find_cli)"
   sync_plugin_json
   sync_claude "$cli"
-  sync_cursor
+  if command -v claude >/dev/null 2>&1 && [[ "$(command -v claude)" != "$(command -v "$cli")" ]]; then
+    sync_claude claude
+  fi
+  sync_user_skills "$CURSOR_SKILLS"
+  sync_user_skills "$CLAUDE_SKILLS"
+  sync_user_skills "$TCLAUDE_SKILLS"
   echo
   echo "完成。Claude 需要重开会话。"
 }
