@@ -19,7 +19,7 @@ Go 服务（`kind: go`）走「接入一个服务」。小程序和小游戏（`
 先读 `docs/发布声明.md`，再按顺序做，每步对着「完成」核一遍。
 
 1. **代码按节点的方式起得来。** 节点上 systemd 在节点目录里直接执行二进制、不带参数，给两个环境变量：`CONFIG_FILE=<节点目录>/app.yaml`、`NODE_NAME=<节点名>`；`trpc_go.yaml` 从工作目录读。所以业务配置的路径从 `CONFIG_FILE` 取。本机跑法写进 `main.go` 的注释：`CONFIG_FILE=config/local/app.yaml go run . -conf config/local/trpc_go.yaml`。
-   完成：本机用这条命令能起来。
+   完成：本机用这条命令能起来。接入发布台后，首页和详情会出现「本机启动」，MCP 用 `start_local`。
 2. **探活有得打。** 默认 `probe: ping`，按线上 `trpc_go.yaml` 里 `server.service` 第一项的协议：trpc 服务要实现 `Ping`，http 服务任何响应都算通。两样都不合适时，在 `deploy.yaml` 写一条 `probe` 命令。
    完成：线上 `trpc_go.yaml` 第一项是 http，或是 trpc 且服务实现了 `Ping`，或 `deploy.yaml` 里写了 `probe` 命令。
 3. **定节点。** 机器从库的 `t_machine` 里选，地域要对上。端口用 MCP 的 `allocate_ports`（给 `machine` 和节点数）取：`ports` 是各节点的 `port`，`metrics_ports` 写进节点的 `vars.metrics_port`。返回里有 `listen_error` 时说明没连上机器、只按登记分，要告诉用户。
